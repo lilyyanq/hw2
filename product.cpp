@@ -54,4 +54,3 @@ void Product::dump(std::ostream& os) const
 }
 
 
-

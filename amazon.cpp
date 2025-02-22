@@ -9,6 +9,7 @@
 #include "db_parser.h"
 #include "product_parser.h"
 #include "util.h"
+#include "mydatastore.h"
 
 using namespace std;
 struct ProdNameSorter {
@@ -20,7 +21,7 @@ void displayProducts(vector<Product*>& hits);
 
 int main(int argc, char* argv[])
 {
-    if(argc < 2) {
+    if (argc < 2) {
         cerr << "Please specify a database file" << endl;
         return 1;
     }
@@ -29,7 +30,8 @@ int main(int argc, char* argv[])
      * Declare your derived DataStore object here replacing
      *  DataStore type to your derived type
      ****************/
-    DataStore ds;
+     //DataStore ds;
+    AmazonDataStore ds;
 
 
 
@@ -46,7 +48,7 @@ int main(int argc, char* argv[])
     parser.addSectionParser("users", userSectionParser);
 
     // Now parse the database to populate the DataStore
-    if( parser.parse(argv[1], ds) ) {
+    if (parser.parse(argv[1], ds)) {
         cerr << "Error parsing!" << endl;
         return 1;
     }
@@ -63,48 +65,109 @@ int main(int argc, char* argv[])
 
     vector<Product*> hits;
     bool done = false;
-    while(!done) {
+    while (!done) {
         cout << "\nEnter command: " << endl;
         string line;
-        getline(cin,line);
+        getline(cin, line);
         stringstream ss(line);
         string cmd;
-        if((ss >> cmd)) {
-            if( cmd == "AND") {
+        if ((ss >> cmd)) {
+            if (cmd == "AND") {
                 string term;
                 vector<string> terms;
-                while(ss >> term) {
+                while (ss >> term) {
                     term = convToLower(term);
                     terms.push_back(term);
                 }
                 hits = ds.search(terms, 0);
                 displayProducts(hits);
             }
-            else if ( cmd == "OR" ) {
+            else if (cmd == "OR") {
                 string term;
                 vector<string> terms;
-                while(ss >> term) {
+                while (ss >> term) {
                     term = convToLower(term);
                     terms.push_back(term);
                 }
                 hits = ds.search(terms, 1);
                 displayProducts(hits);
             }
-            else if ( cmd == "QUIT") {
+            else if (cmd == "QUIT") {
                 string filename;
-                if(ss >> filename) {
+                if (ss >> filename) {
                     ofstream ofile(filename.c_str());
                     ds.dump(ofile);
                     ofile.close();
                 }
                 done = true;
             }
-	    /* Add support for other commands here */
+            /* Add support for other commands here */
 
+            else if (cmd == "ADD")
+            {
+                string username;
+                int hitIndex;
 
+                if (!(ss >> username >> hitIndex)) { // Read username and hit index
+                    cout << "Invalid request" << endl;
+                    continue;
+                }
 
+                // Convert username to lowercase to ensure case-insensitive comparison
+                username = convToLower(username);
 
-            else {
+                // Check if user exists in the database
+                if (!ds.userExists(username)) {
+                    cout << "Invalid request" << endl;
+                    continue;
+                }
+
+                // Check if the hit index is valid (1-based index)
+                if (hitIndex < 1 || hitIndex >(int)hits.size()) {
+                    cout << "Invalid request" << endl;
+                    continue;
+                }
+
+                // Get the product from the search results (convert 1-based to 0-based index)
+                Product* selectedProduct = hits[hitIndex - 1];
+
+                // Add the product to the user's cart (FIFO)
+                ds.addToCart(username, selectedProduct);
+
+                cout << "Added " << selectedProduct->getName() << " to " << username << "'s cart." << endl;
+            }
+            else if (cmd == "VIEWCART")
+            {
+                string username;
+                if (!(ss >> username)) {  // Read username
+                    cout << "Invalid request" << endl;
+                    continue;
+                }
+
+                // Convert to lowercase for case-insensitive search
+                username = convToLower(username);
+
+                // Call `viewCart()` to display the user's cart
+                ds.viewCart(username);
+
+            }
+            else if (cmd == "BUYCART")
+            {
+                string username;
+                if (!(ss >> username)) {  // Read username
+                    cout << "Invalid request" << endl;
+                    continue;
+                }
+
+                // Convert to lowercase for case-insensitive search
+                username = convToLower(username);
+
+                // Call `buyCart()` to buy the added product
+                ds.buyCart(username);
+            }
+
+            else
+            {
                 cout << "Unknown command" << endl;
             }
         }
